@@ -159,6 +159,7 @@ export default function Block({
       onSlashMenu({
         top: rect.bottom + 4,
         left: rect.left,
+        anchorEl: contentRef.current,
       });
       return;
     }

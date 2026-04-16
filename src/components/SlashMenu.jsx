@@ -1,15 +1,47 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { SLASH_MENU_ITEMS } from '../utils/blockTypes';
 
 /**
  * 斜杠命令菜单
  * 输入 / 时弹出，选择 Block 类型
  */
-export default function SlashMenu({ position, onSelect, onClose }) {
+export default function SlashMenu({ position, anchorEl, onSelect, onClose }) {
   const [search, setSearch] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [menuPos, setMenuPos] = useState({ top: position.top, left: position.left, flipUp: false });
   const menuRef = useRef(null);
   const inputRef = useRef(null);
+
+  // 动态计算菜单位置（跟随锚点 + 底部翻转）
+  const updatePosition = useCallback(() => {
+    if (!anchorEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const menuHeight = menuRef.current?.offsetHeight || 320;
+    const spaceBelow = window.innerHeight - rect.bottom - 4;
+    const flipUp = spaceBelow < menuHeight && rect.top > menuHeight;
+    setMenuPos({
+      top: flipUp ? rect.top - menuHeight - 4 : rect.bottom + 4,
+      left: rect.left,
+      flipUp,
+    });
+  }, [anchorEl]);
+
+  // 滚动和窗口变化时重新计算位置
+  useEffect(() => {
+    if (!anchorEl) return;
+    updatePosition();
+    const scrollParent = anchorEl.closest('.overflow-y-auto, .overflow-auto') || window;
+    const handleScroll = () => updatePosition();
+    const handleResize = () => updatePosition();
+    scrollParent.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      scrollParent.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [anchorEl, updatePosition]);
 
   // 过滤菜单项
   const filteredItems = useMemo(() => {
@@ -84,11 +116,11 @@ export default function SlashMenu({ position, onSelect, onClose }) {
   return (
     <div
       ref={menuRef}
-      className="slash-menu animate-slide-down"
+      className={`slash-menu ${menuPos.flipUp ? 'animate-slide-up' : 'animate-slide-down'}`}
       style={{
         position: 'fixed',
-        top: position.top,
-        left: position.left,
+        top: menuPos.top,
+        left: menuPos.left,
       }}
     >
       {/* 搜索框 */}

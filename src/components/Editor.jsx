@@ -276,6 +276,7 @@ export default function Editor({
       {slashMenu && (
         <SlashMenu
           position={slashMenu.position}
+          anchorEl={slashMenu.position.anchorEl}
           onSelect={handleSlashSelect}
           onClose={() => setSlashMenu(null)}
         />
