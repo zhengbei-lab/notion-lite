@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==================== 全局样式 ==================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  color: #37352F;
+  background: #FFFFFF;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==================== 编辑器样式 ==================== */
+[contenteditable] {
+  outline: none;
+  caret-color: #37352F;
+}
+
+[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #C4C4C0;
+  pointer-events: none;
+}
+
+/* ==================== Block 样式 ==================== */
+.block-wrapper {
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.block-wrapper:hover {
+  background-color: rgba(55, 53, 47, 0.02);
+}
+
+.block-wrapper .block-handle {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.block-wrapper:hover .block-handle {
+  opacity: 1;
+}
+
+/* ==================== 标题样式 ==================== */
+.block-heading1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 2rem;
+  letter-spacing: -0.01em;
+}
+
+.block-heading2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.4rem;
+}
+
+.block-heading3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1rem;
+}
+
+/* ==================== 代码块样式 ==================== */
+.block-code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background: #F7F6F3;
+  border-radius: 4px;
+  padding: 1rem 1.25rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  tab-size: 2;
+}
+
+/* ==================== 引用样式 ==================== */
+.block-quote {
+  border-left: 3px solid #37352F;
+  padding-left: 1rem;
+  font-style: italic;
+  color: #6B6B6B;
+}
+
+/* ==================== Callout 样式 ==================== */
+.block-callout {
+  background: #F7F6F3;
+  border-radius: 4px;
+  padding: 1rem 1rem 1rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+/* ==================== 分割线样式 ==================== */
+.block-divider {
+  border: none;
+  border-top: 1px solid #E9E9E7;
+  margin: 0.5rem 0;
+}
+
+/* ==================== 滚动条样式 ==================== */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D3D1CB;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #AEACA7;
+}
+
+/* ==================== 选中样式 ==================== */
+::selection {
+  background: rgba(46, 170, 220, 0.2);
+}
+
+/* ==================== 协作光标 ==================== */
+.collab-cursor {
+  position: absolute;
+  width: 2px;
+  height: 1.2em;
+  animation: blink 1.2s step-end infinite;
+}
+
+.collab-cursor-label {
+  position: absolute;
+  top: -20px;
+  left: -1px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: white;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ==================== 斜杠菜单 ==================== */
+.slash-menu {
+  position: absolute;
+  z-index: 50;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.05), 0 3px 6px rgba(15, 15, 15, 0.1), 0 9px 24px rgba(15, 15, 15, 0.2);
+  max-height: 320px;
+  overflow-y: auto;
+  width: 280px;
+}
+
+.slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.slash-menu-item:hover,
+.slash-menu-item.active {
+  background: #F7F6F3;
+}
+
+/* ==================== AI 面板 ==================== */
+.ai-panel {
+  background: linear-gradient(135deg, #F8F7FF 0%, #F0F4FF 100%);
+  border: 1px solid #E8E5FF;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(105, 64, 165, 0.08);
+}
+
+/* ==================== 拖拽 ==================== */
+.dragging {
+  opacity: 0.5;
+}
+
+.drag-over {
+  border-top: 2px solid #2EAADC;
+}
+
+/* ==================== 动画 ==================== */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.ai-loading {
+  background: linear-gradient(90deg, #E8E5FF 25%, #D4CFFF 50%, #E8E5FF 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  height: 16px;
+}
