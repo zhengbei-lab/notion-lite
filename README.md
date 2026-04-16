@@ -35,7 +35,7 @@
 ## 快速开始
 
 ```bash
-git clone https://github.com/your-username/notion-lite.git
+git clone https://github.com/zhengbei-lab/notion-lite.git
 cd notion-lite
 npm install
 npm run dev
