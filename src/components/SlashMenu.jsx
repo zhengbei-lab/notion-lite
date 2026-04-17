@@ -106,10 +106,12 @@ export default function SlashMenu({ position, anchorEl, onSelect, onClose }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeIndex, filteredItems, onSelect, onClose]);
 
-  // 重置 activeIndex
+  // 重置 activeIndex，并在菜单内容变化后重新计算位置
   useEffect(() => {
     setActiveIndex(0);
-  }, [search]);
+    // 等 DOM 更新后重新计算位置，防止菜单高度变化导致溢出
+    requestAnimationFrame(() => updatePosition());
+  }, [search, updatePosition]);
 
   let flatIndex = 0;
 
