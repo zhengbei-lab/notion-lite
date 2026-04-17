@@ -114,6 +114,25 @@ export default function Editor({
     [blocks, onBlockDelete, focusBlock]
   );
 
+  // 粘贴多行文本（从 Block 组件传来的剩余行）
+  const handlePaste = useCallback(
+    (blockId, lines) => {
+      const block = blocks.find((b) => b.id === blockId);
+      const pasteType = block ? block.type : 'paragraph';
+      let lastBlockId = blockId;
+      for (const line of lines) {
+        const newBlock = onBlockAdd(lastBlockId, pasteType, line);
+        if (newBlock) {
+          lastBlockId = newBlock.id;
+        }
+      }
+      if (lastBlockId !== blockId) {
+        focusBlock(lastBlockId, true);
+      }
+    },
+    [blocks, onBlockAdd, focusBlock]
+  );
+
   // 复制 Block
   const handleDuplicate = useCallback(
     (blockId) => {
@@ -293,6 +312,7 @@ export default function Editor({
               onDragStart={(e) => handleDragStart(e, block.id)}
               onDelete={() => onBlockDelete(block.id)}
               onDuplicate={() => handleDuplicate(block.id)}
+              onPaste={(lines) => handlePaste(block.id, lines)}
               registerRef={(ref) => registerBlockRef(block.id, ref)}
               remoteCursors={onlineUsers.filter(
                 (u) => u.cursor?.blockId === block.id

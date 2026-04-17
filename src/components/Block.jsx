@@ -22,6 +22,7 @@ export default function Block({
   onDragStart,
   onDelete,
   onDuplicate,
+  onPaste,
   registerRef,
   remoteCursors,
 }) {
@@ -77,21 +78,32 @@ export default function Block({
     }
   }, [registerRef]);
 
+  // 多行类型：quote 和 callout 允许块内换行
+  const isMultiLine = block.type === 'quote' || block.type === 'callout';
+
   // 同步内容到 DOM（仅在非编辑状态下更新，避免光标跳动）
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
-    // 只在元素未获得焦点时同步（防止覆盖用户正在输入的内容）
-    if (document.activeElement !== el && el.textContent !== block.content) {
-      el.textContent = block.content;
+    const elContent = isMultiLine ? el.innerText : el.textContent;
+    if (document.activeElement !== el && elContent !== block.content) {
+      if (isMultiLine) {
+        el.innerText = block.content;
+      } else {
+        el.textContent = block.content;
+      }
     }
-  }, [block.content]);
+  }, [block.content, isMultiLine]);
 
   // 首次挂载时设置初始内容
   useEffect(() => {
     const el = contentRef.current;
     if (el && block.content && !el.textContent) {
-      el.textContent = block.content;
+      if (isMultiLine) {
+        el.innerText = block.content;
+      } else {
+        el.textContent = block.content;
+      }
     }
   }, []);
 
@@ -100,8 +112,29 @@ export default function Block({
     (e) => {
       const el = contentRef.current;
 
-      // Enter 键：新建 Block
+      // Enter 键：多行块内换行，单行块新建 Block
       if (e.key === 'Enter' && !e.shiftKey) {
+        if (isMultiLine) {
+          // Cmd/Ctrl+Enter → 退出多行块，新建 paragraph
+          if (e.metaKey || e.ctrlKey) {
+            e.preventDefault();
+            onEnter();
+            return;
+          }
+          // 连续两次 Enter（末尾空行回车）→ 退出多行块
+          const content = el.innerText || '';
+          if (content.endsWith('\n') || content.endsWith('\n\n')) {
+            e.preventDefault();
+            // 移除末尾的空行
+            const trimmed = content.replace(/\n+$/, '');
+            el.innerText = trimmed;
+            onUpdate({ content: trimmed });
+            onEnter();
+            return;
+          }
+          // 普通 Enter 不阻止，允许换行
+          return;
+        }
         e.preventDefault();
         onEnter();
         return;
@@ -149,9 +182,52 @@ export default function Block({
     [onEnter, onBackspace, onArrowUp, onArrowDown, block.type]
   );
 
+  // 粘贴事件处理
+  const handlePaste = useCallback((e) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+
+    // 多行块（quote/callout）：直接粘贴全部内容，保留换行
+    if (isMultiLine) {
+      document.execCommand('insertText', false, text);
+      return;
+    }
+
+    const lines = text.split('\n');
+
+    if (lines.length <= 1) {
+      // 单行：直接插入
+      document.execCommand('insertText', false, text);
+      return;
+    }
+
+    // 多行：第一行插入当前 block，其余交给 Editor 创建新 block
+    document.execCommand('insertText', false, lines[0]);
+    if (onPaste) {
+      onPaste(lines.slice(1));
+    }
+  }, [onPaste, isMultiLine]);
+
+  // Markdown 快捷输入规则（\s 匹配普通空格和 &nbsp;）
+  const markdownShortcuts = [
+    { pattern: /^#\s$/, type: 'heading1' },
+    { pattern: /^##\s$/, type: 'heading2' },
+    { pattern: /^###\s$/, type: 'heading3' },
+    { pattern: /^[-*]\s$/, type: 'bulleted_list' },
+    { pattern: /^\d+\.\s$/, type: 'numbered_list' },
+    { pattern: /^\[]\s$/, type: 'todo' },
+    { pattern: /^>\s$/, type: 'quote' },
+    { pattern: /^```$/, type: 'code' },
+    { pattern: /^---$/, type: 'divider' },
+  ];
+
   // 内容变更
   const handleInput = useCallback(() => {
-    const content = contentRef.current?.textContent || '';
+    const rawContent = isMultiLine
+      ? (contentRef.current?.innerText || '')
+      : (contentRef.current?.textContent || '');
+    // 将 &nbsp; (\u00A0) 替换为普通空格，方便匹配
+    const content = rawContent.replace(/\u00A0/g, ' ');
 
     // 检测斜杠命令
     if (content === '/') {
@@ -164,8 +240,19 @@ export default function Block({
       return;
     }
 
-    onUpdate({ content });
-  }, [onUpdate, onSlashMenu]);
+    // 检测 Markdown 快捷输入（仅 paragraph 类型触发）
+    if (block.type === 'paragraph') {
+      for (const { pattern, type } of markdownShortcuts) {
+        if (pattern.test(content)) {
+          contentRef.current.textContent = '';
+          onUpdate({ content: '', type });
+          return;
+        }
+      }
+    }
+
+    onUpdate({ content: rawContent });
+  }, [onUpdate, onSlashMenu, block.type, isMultiLine]);
 
   // Todo 复选框切换
   const handleTodoToggle = useCallback(() => {
@@ -312,6 +399,7 @@ export default function Block({
               className="flex-1 outline-none text-base leading-relaxed"
               onInput={handleInput}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               onFocus={onFocus}
             />
           </div>
@@ -332,6 +420,7 @@ export default function Block({
             }`}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onFocus={onFocus}
           />
         )}
