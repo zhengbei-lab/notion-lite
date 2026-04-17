@@ -23,6 +23,10 @@ body {
   caret-color: #37352F;
 }
 
+textarea {
+  caret-color: #37352F;
+}
+
 [contenteditable]:empty::before {
   content: attr(data-placeholder);
   color: #C4C4C0;
