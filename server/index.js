@@ -259,7 +259,9 @@ app.post('/api/documents', (req, res) => {
     created_at: now, updated_at: now, created_by: null,
   });
   recordOperation(pageId, null, 'create', [], { type: 'page' }, 1);
-  res.json({ id: pageId, title: req.body.title || '无标题', icon: req.body.icon || '📄' });
+  const docInfo = { id: pageId, title: req.body.title || '无标题', icon: req.body.icon || '📄' };
+  io.emit('document-created', docInfo);
+  res.json(docInfo);
 });
 
 app.delete('/api/documents/:id', (req, res) => {
@@ -269,6 +271,7 @@ app.delete('/api/documents/:id', (req, res) => {
   page.updated_at = new Date().toISOString();
   getChildBlocks(page.id).forEach((child) => { child.alive = false; });
   recordOperation(page.id, null, 'delete', [], {}, page.version);
+  io.emit('document-deleted', { docId: req.params.id });
   res.json({ success: true });
 });
 
@@ -385,7 +388,7 @@ io.on('connection', (socket) => {
   socket.on('title-update', ({ docId, title }) => {
     const page = blockStore.get(docId);
     if (page) { page.content = title; page.version++; page.updated_at = new Date().toISOString(); saveSnapshot(docId); }
-    socket.to(docId).emit('title-updated', { title, userId: socket.id });
+    socket.broadcast.emit('title-updated', { docId, title, userId: socket.id });
   });
 
   socket.on('cursor-update', ({ docId, blockId, offset }) => {

@@ -21,6 +21,8 @@ export function useCollaboration(docId) {
   const onBlockReordered = useRef(null);
   const onTitleUpdated = useRef(null);
   const onCursorUpdated = useRef(null);
+  const onDocumentCreated = useRef(null);
+  const onDocumentDeleted = useRef(null);
 
   useEffect(() => {
     if (!docId) return;
@@ -45,6 +47,8 @@ export function useCollaboration(docId) {
     socket.on('block-reordered', (data) => onBlockReordered.current?.(data));
     socket.on('title-updated', (data) => onTitleUpdated.current?.(data));
     socket.on('cursor-updated', (data) => onCursorUpdated.current?.(data));
+    socket.on('document-created', (data) => onDocumentCreated.current?.(data));
+    socket.on('document-deleted', (data) => onDocumentDeleted.current?.(data));
 
     return () => {
       socket.disconnect();
@@ -94,5 +98,7 @@ export function useCollaboration(docId) {
     onBlockReordered,
     onTitleUpdated,
     onCursorUpdated,
+    onDocumentCreated,
+    onDocumentDeleted,
   };
 }

@@ -54,7 +54,7 @@ export default function App() {
         body: JSON.stringify({ title: '无标题' }),
       });
       const doc = await res.json();
-      setDocuments((prev) => [...prev, { id: doc.id, title: doc.title, icon: doc.icon }]);
+      // 文档列表由 WebSocket document-created 事件同步，无需本地重复添加
       setCurrentDocId(doc.id);
     } catch (err) {
       console.error('创建文档失败:', err);
@@ -65,19 +65,14 @@ export default function App() {
   const deleteDocument = useCallback(async (docId) => {
     try {
       const res = await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setDocuments((prev) => {
-          const remaining = prev.filter((d) => d.id !== docId);
-          if (currentDocId === docId && remaining.length > 0) {
-            setCurrentDocId(remaining[0].id);
-          }
-          return remaining;
-        });
+      if (!res.ok) {
+        console.error('删除文档失败');
       }
+      // 文档列表由 WebSocket document-deleted 事件同步
     } catch (err) {
       console.error('删除文档失败:', err);
     }
-  }, [currentDocId]);
+  }, []);
 
   // 初始化
   useEffect(() => {
@@ -104,10 +99,30 @@ export default function App() {
     collab.onBlockReordered.current = ({ blockId, newIndex }) => {
       reorderBlock(blockId, newIndex);
     };
-    collab.onTitleUpdated.current = ({ title }) => {
-      setDocTitle(title);
+    collab.onTitleUpdated.current = ({ docId, title }) => {
+      if (docId === currentDocId) {
+        setDocTitle(title);
+      }
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === docId ? { ...d, title } : d))
+      );
     };
-  }, [collab, updateBlock, insertBlock, deleteBlock, reorderBlock]);
+    collab.onDocumentCreated.current = (doc) => {
+      setDocuments((prev) => {
+        if (prev.some((d) => d.id === doc.id)) return prev;
+        return [...prev, { id: doc.id, title: doc.title, icon: doc.icon }];
+      });
+    };
+    collab.onDocumentDeleted.current = ({ docId }) => {
+      setDocuments((prev) => {
+        const remaining = prev.filter((d) => d.id !== docId);
+        if (currentDocId === docId && remaining.length > 0) {
+          setCurrentDocId(remaining[0].id);
+        }
+        return remaining;
+      });
+    };
+  }, [collab, updateBlock, insertBlock, deleteBlock, reorderBlock, currentDocId]);
 
   // Block 操作（带协作同步）
   const handleBlockUpdate = useCallback(
@@ -146,9 +161,12 @@ export default function App() {
   const handleTitleChange = useCallback(
     (title) => {
       setDocTitle(title);
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === currentDocId ? { ...d, title } : d))
+      );
       collab.emitTitleUpdate(title);
     },
-    [collab]
+    [collab, currentDocId]
   );
 
   return (

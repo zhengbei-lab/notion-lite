@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Block from './Block';
 import SlashMenu from './SlashMenu';
 import AIPanel from './AIPanel';
@@ -21,7 +21,15 @@ export default function Editor({
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const editorRef = useRef(null);
+  const titleRef = useRef(null);
   const blockRefs = useRef({});
+
+  // 同步外部标题（仅在未聚焦时更新，避免光标跳转）
+  useEffect(() => {
+    if (titleRef.current && document.activeElement !== titleRef.current && titleRef.current.textContent !== title) {
+      titleRef.current.textContent = title;
+    }
+  }, [title]);
 
   // 注册 block ref
   const registerBlockRef = useCallback((blockId, ref) => {
@@ -201,7 +209,7 @@ export default function Editor({
   );
 
   return (
-    <div ref={editorRef} className="max-w-3xl mx-auto px-6 sm:px-12 md:px-24 py-8 pb-40">
+    <div ref={editorRef} className="max-w-4xl mx-auto px-6 sm:px-12 md:px-16 py-8 pb-40">
       {/* 文档图标 */}
       <div className="text-6xl mb-3 cursor-pointer hover:opacity-80 transition-opacity">
         {icon}
@@ -209,6 +217,7 @@ export default function Editor({
 
       {/* 文档标题 */}
       <div
+        ref={titleRef}
         contentEditable
         suppressContentEditableWarning
         data-placeholder="无标题"
@@ -220,9 +229,7 @@ export default function Editor({
             if (blocks.length > 0) focusBlock(blocks[0].id);
           }
         }}
-      >
-        {title}
-      </div>
+      />
 
       {/* Block 列表 */}
       <div className="space-y-0.5">
