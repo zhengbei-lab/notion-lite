@@ -27,7 +27,11 @@ textarea {
   caret-color: #37352F;
 }
 
-[contenteditable]:empty::before {
+[contenteditable] {
+  min-height: 1.5em;
+}
+
+[contenteditable][data-empty="true"]:focus::before {
   content: attr(data-placeholder);
   color: #C4C4C0;
   pointer-events: none;
@@ -37,6 +41,7 @@ textarea {
 .block-wrapper {
   position: relative;
   transition: background-color 0.15s ease;
+  padding-left: 40px;
 }
 
 .block-wrapper:hover {
@@ -44,12 +49,30 @@ textarea {
 }
 
 .block-wrapper .block-handle {
+  position: absolute;
+  left: 0;
+  top: 2px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
 
 .block-wrapper:hover .block-handle {
   opacity: 1;
+}
+
+/* 块级选择高亮 */
+.block-selected .block-wrapper {
+  background-color: rgba(46, 170, 220, 0.12);
+  border-radius: 4px;
+}
+
+.block-selected .block-wrapper [contenteditable] {
+  caret-color: transparent;
+}
+
+.block-selected .block-wrapper::selection,
+.block-selected .block-wrapper *::selection {
+  background: transparent;
 }
 
 /* ==================== 标题样式 ==================== */
@@ -143,6 +166,195 @@ textarea {
 /* ==================== 选中样式 ==================== */
 ::selection {
   background: rgba(46, 170, 220, 0.2);
+}
+
+/* ==================== 富文本行内样式 ==================== */
+[contenteditable] code {
+  background: rgba(135, 131, 120, 0.15);
+  color: #EB5757;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+}
+
+[contenteditable] a {
+  color: #37352F;
+  text-decoration: underline;
+  text-decoration-color: rgba(55, 53, 47, 0.4);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+[contenteditable] a:hover {
+  text-decoration-color: rgba(55, 53, 47, 0.8);
+  color: #2383E2;
+}
+
+/* ==================== 浮动格式工具栏 ==================== */
+.inline-toolbar {
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  background: #37352F;
+  border-radius: 6px;
+  padding: 4px 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  animation: toolbar-fade-in 0.12s ease;
+}
+
+@keyframes toolbar-fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.inline-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: #FFFFFFCC;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: background 0.1s, color 0.1s;
+}
+
+.inline-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+}
+
+.inline-toolbar-btn.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #2EAADC;
+}
+
+.inline-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 3px;
+}
+
+/* ==================== 右侧悬浮目录 ==================== */
+.toc-wrapper {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 50;
+  padding: 8px 6px 8px 10px;
+  cursor: pointer;
+}
+
+/* 收起状态：横线标记 */
+.toc-marks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 4px;
+  transition: opacity 0.15s ease;
+}
+
+.toc-marks-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toc-mark {
+  width: 16px;
+  height: 2px;
+  background: #D3D1CB;
+  border-radius: 1px;
+  transition: background 0.15s, width 0.15s;
+}
+
+.toc-mark.active {
+  width: 20px;
+  background: #37352F;
+}
+
+/* 展开面板 */
+.toc-panel {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1px solid #E9E9E7;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  padding: 12px 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.toc-panel-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.toc-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9B9A97;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  padding-left: 6px;
+}
+
+.toc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.toc-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #9B9A97;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s, background 0.15s;
+}
+
+.toc-item:hover {
+  color: #37352F;
+  background: rgba(55, 53, 47, 0.04);
+}
+
+.toc-item.active {
+  color: #37352F;
+  font-weight: 500;
+}
+
+.toc-indent-1 {
+  padding-left: 18px;
+}
+
+.toc-indent-2 {
+  padding-left: 30px;
 }
 
 /* ==================== 协作光标 ==================== */

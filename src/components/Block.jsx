@@ -2,6 +2,23 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import CodeBlock from './CodeBlock';
 import BlockMenu from './BlockMenu';
 
+// 基础 HTML 安全过滤（防止远程内容注入脚本）
+const sanitizeHtml = (html) => {
+  if (!html) return '';
+  const div = document.createElement('div');
+  div.innerHTML = html.replace(/\n/g, '<br>');
+  div.querySelectorAll('script,style,iframe,object,embed').forEach(n => n.remove());
+  div.querySelectorAll('*').forEach(n => {
+    [...n.attributes].forEach(a => {
+      if (a.name.startsWith('on')) n.removeAttribute(a.name);
+      if (a.name === 'href' && /^(javascript|data):/i.test(n.getAttribute(a.name) || '')) {
+        n.removeAttribute(a.name);
+      }
+    });
+  });
+  return div.innerHTML;
+};
+
 /**
  * Block 组件 — 文档的最小编辑单元
  * 
@@ -27,7 +44,6 @@ export default function Block({
   remoteCursors,
 }) {
   const contentRef = useRef(null);
-  const [showHandle, setShowHandle] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null); // { top, left }
 
   // 点击六点手柄 → 弹出菜单
@@ -43,9 +59,9 @@ export default function Block({
     onUpdate({ type: newType });
   }, [onUpdate]);
 
-  // 操作手柄组件（复用）
-  const HandleButtons = ({ extraClass = '' }) => (
-    <div className={`block-handle flex items-center gap-0.5 pr-1 flex-shrink-0 ${extraClass} ${showHandle ? 'opacity-100' : ''}`}>
+  // 操作手柄（直接渲染 JSX，不用内联组件以避免 re-mount）
+  const handleButtonsJsx = (extraClass = '') => (
+    <div className={`block-handle flex items-center gap-0.5 pr-1 flex-shrink-0 ${extraClass}`}>
       <button
         onClick={onEnter}
         className="p-0.5 text-notion-text-light hover:text-notion-text rounded hover:bg-notion-hover transition-colors"
@@ -82,30 +98,59 @@ export default function Block({
   const isMultiLine = block.type === 'quote' || block.type === 'callout';
 
   // 同步内容到 DOM（仅在非编辑状态下更新，避免光标跳动）
-  useEffect(() => {
-    const el = contentRef.current;
+  // 使用 innerHTML 以保留富文本格式（加粗、斜体等）
+  const updateEmptyAttr = useCallback((el) => {
     if (!el) return;
-    const elContent = isMultiLine ? el.innerText : el.textContent;
-    if (document.activeElement !== el && elContent !== block.content) {
-      if (isMultiLine) {
-        el.innerText = block.content;
-      } else {
-        el.textContent = block.content;
-      }
+    const isEmpty = !el.textContent?.trim();
+    if (isEmpty) {
+      el.setAttribute('data-empty', 'true');
+    } else {
+      el.removeAttribute('data-empty');
     }
-  }, [block.content, isMultiLine]);
+  }, []);
 
-  // 首次挂载时设置初始内容
   useEffect(() => {
     const el = contentRef.current;
-    if (el && block.content && !el.textContent) {
-      if (isMultiLine) {
-        el.innerText = block.content;
-      } else {
-        el.textContent = block.content;
+    if (!el || document.activeElement === el) return;
+    el.innerHTML = sanitizeHtml(block.content || '');
+    updateEmptyAttr(el);
+  }, [block.content, updateEmptyAttr]);
+
+  // 点击链接跳转（需要 Cmd/Ctrl 键，避免影响编辑）
+  const handleClick = useCallback((e) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    // 找到被点击的链接元素（兼容点击到文本节点的情况）
+    let target = e.target;
+    if (target.nodeType === Node.TEXT_NODE) {
+      target = target.parentElement;
+    }
+    const anchor = target?.closest?.('a');
+    if (anchor) {
+      const href = anchor.getAttribute('href');
+      if (href) {
+        e.preventDefault();
+        window.open(href, '_blank', 'noopener,noreferrer');
       }
     }
   }, []);
+
+  // 聚焦/失焦时维护 data-empty 属性
+  const handleFocus = useCallback((e) => {
+    const el = contentRef.current;
+    if (el) {
+      // 清理浏览器自动插入的 <br>
+      if (!el.textContent?.trim() && el.innerHTML !== '') {
+        el.innerHTML = '';
+      }
+      updateEmptyAttr(el);
+    }
+    if (onFocus) onFocus(e);
+  }, [onFocus, updateEmptyAttr]);
+
+  const handleBlur = useCallback(() => {
+    const el = contentRef.current;
+    if (el) updateEmptyAttr(el);
+  }, [updateEmptyAttr]);
 
   // 键盘事件处理
   const handleKeyDown = useCallback(
@@ -122,13 +167,18 @@ export default function Block({
             return;
           }
           // 连续两次 Enter（末尾空行回车）→ 退出多行块
-          const content = el.innerText || '';
-          if (content.endsWith('\n') || content.endsWith('\n\n')) {
+          const textContent = el.innerText || '';
+          if (textContent.endsWith('\n') || textContent.endsWith('\n\n')) {
             e.preventDefault();
-            // 移除末尾的空行
-            const trimmed = content.replace(/\n+$/, '');
-            el.innerText = trimmed;
-            onUpdate({ content: trimmed });
+            // 移除末尾空节点（br、空 div）
+            while (el.lastChild) {
+              const node = el.lastChild;
+              if (node.nodeName === 'BR') { node.remove(); continue; }
+              if (node.nodeName === 'DIV' && !node.textContent.trim()) { node.remove(); continue; }
+              if (node.nodeType === 3 && !node.textContent.trim()) { node.remove(); continue; }
+              break;
+            }
+            onUpdate({ content: el.innerHTML || '' });
             onEnter();
             return;
           }
@@ -136,7 +186,27 @@ export default function Block({
           return;
         }
         e.preventDefault();
-        onEnter();
+        // 在光标位置分割内容（保留富文本格式）
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          // 提取光标后的 HTML 片段
+          const afterRange = document.createRange();
+          afterRange.setStart(range.endContainer, range.endOffset);
+          afterRange.setEndAfter(el.lastChild || el);
+          const fragment = afterRange.cloneContents();
+          const tempDiv = document.createElement('div');
+          tempDiv.appendChild(fragment);
+          const afterHtml = tempDiv.innerHTML;
+          // 删除光标后的内容
+          afterRange.deleteContents();
+          // 清理可能残留的空 br
+          if (el.innerHTML === '<br>') el.innerHTML = '';
+          onUpdate({ content: el.innerHTML || '' });
+          onEnter(afterHtml);
+        } else {
+          onEnter('');
+        }
         return;
       }
 
@@ -185,6 +255,48 @@ export default function Block({
   // 粘贴事件处理
   const handlePaste = useCallback((e) => {
     e.preventDefault();
+
+    // 优先检查自定义块数据（来自块级选择复制）
+    const notionData = e.clipboardData.getData('application/x-notion-blocks');
+    // 也检查 sessionStorage（来自 CodeBlock 复制）
+    const sessionData = sessionStorage.getItem('notion-clipboard');
+    const rawData = notionData || sessionData;
+    if (rawData && onPaste) {
+      try {
+        const blocksData = JSON.parse(rawData);
+        if (Array.isArray(blocksData) && blocksData.length > 0) {
+          // 验证 sessionStorage 数据与剪贴板内容一致（防止过期数据）
+          if (!notionData && sessionData) {
+            const clipText = e.clipboardData.getData('text/plain');
+            const storedText = blocksData.map(b => b.content || '').join('\n');
+            if (clipText !== storedText) {
+              sessionStorage.removeItem('notion-clipboard');
+              // 数据不匹配，走普通粘贴
+              throw new Error('stale');
+            }
+          }
+          // 清除 sessionStorage 中的一次性数据
+          if (sessionData) sessionStorage.removeItem('notion-clipboard');
+          // 第一个块：更新当前块的类型并插入内容
+          const first = blocksData[0];
+          const newContent = first.content || '';
+          const updates = { type: first.type, content: newContent };
+          if (first.properties) updates.properties = first.properties;
+          onUpdate(updates);
+          // 因为当前块处于聚焦状态，useEffect 不会同步 DOM，手动更新
+          const el = contentRef.current;
+          if (el) {
+            el.innerHTML = sanitizeHtml(newContent);
+          }
+          // 其余块带类型创建
+          if (blocksData.length > 1) {
+            onPaste(blocksData.slice(1));
+          }
+          return;
+        }
+      } catch (_) { /* fallback to plain text */ }
+    }
+
     const text = e.clipboardData.getData('text/plain');
 
     // 多行块（quote/callout）：直接粘贴全部内容，保留换行
@@ -206,7 +318,7 @@ export default function Block({
     if (onPaste) {
       onPaste(lines.slice(1));
     }
-  }, [onPaste, isMultiLine]);
+  }, [onPaste, onUpdate, isMultiLine]);
 
   // Markdown 快捷输入规则（\s 匹配普通空格和 &nbsp;）
   const markdownShortcuts = [
@@ -221,21 +333,23 @@ export default function Block({
     { pattern: /^---$/, type: 'divider' },
   ];
 
-  // 内容变更
+  // 内容变更（使用 innerHTML 保留富文本格式）
   const handleInput = useCallback(() => {
-    const rawContent = isMultiLine
-      ? (contentRef.current?.innerText || '')
-      : (contentRef.current?.textContent || '');
+    const el = contentRef.current;
+    if (!el) return;
+    // 纯文本用于命令检测，HTML 用于内容存储
+    const textContent = el.textContent || '';
+    const htmlContent = el.innerHTML || '';
     // 将 &nbsp; (\u00A0) 替换为普通空格，方便匹配
-    const content = rawContent.replace(/\u00A0/g, ' ');
+    const normalizedText = textContent.replace(/\u00A0/g, ' ');
 
     // 检测斜杠命令
-    if (content === '/') {
-      const rect = contentRef.current.getBoundingClientRect();
+    if (normalizedText === '/') {
+      const rect = el.getBoundingClientRect();
       onSlashMenu({
         top: rect.bottom + 4,
         left: rect.left,
-        anchorEl: contentRef.current,
+        anchorEl: el,
       });
       return;
     }
@@ -243,16 +357,17 @@ export default function Block({
     // 检测 Markdown 快捷输入（仅 paragraph 类型触发）
     if (block.type === 'paragraph') {
       for (const { pattern, type } of markdownShortcuts) {
-        if (pattern.test(content)) {
-          contentRef.current.textContent = '';
+        if (pattern.test(normalizedText)) {
+          el.innerHTML = '';
           onUpdate({ content: '', type });
           return;
         }
       }
     }
 
-    onUpdate({ content: rawContent });
-  }, [onUpdate, onSlashMenu, block.type, isMultiLine]);
+    onUpdate({ content: htmlContent });
+    updateEmptyAttr(el);
+  }, [onUpdate, onSlashMenu, block.type, updateEmptyAttr]);
 
   // Todo 复选框切换
   const handleTodoToggle = useCallback(() => {
@@ -284,12 +399,10 @@ export default function Block({
   if (block.type === 'divider') {
     return (
       <div
-        className="block-wrapper py-2 group flex items-center"
-        onMouseEnter={() => setShowHandle(true)}
-        onMouseLeave={() => setShowHandle(false)}
+        className="block-wrapper py-2 group"
       >
-        <HandleButtons />
-        <hr className="block-divider flex-1" />
+        {handleButtonsJsx()}
+        <hr className="block-divider" />
         {menuPosition && (
           <BlockMenu
             position={menuPosition}
@@ -319,12 +432,10 @@ export default function Block({
   if (block.type === 'code') {
     return (
       <div
-        className="block-wrapper group flex items-start py-0.5"
-        onMouseEnter={() => setShowHandle(true)}
-        onMouseLeave={() => setShowHandle(false)}
+        className="block-wrapper group py-0.5"
       >
-        <HandleButtons extraClass="pt-0.5" />
-        <div className="flex-1 min-w-0">
+        {handleButtonsJsx('pt-0.5')}
+        <div className="min-w-0">
           <CodeBlock
             block={block}
             onUpdate={onUpdate}
@@ -350,15 +461,13 @@ export default function Block({
 
   return (
     <div
-      className="block-wrapper group flex items-start py-0.5"
-      onMouseEnter={() => setShowHandle(true)}
-      onMouseLeave={() => setShowHandle(false)}
+      className="block-wrapper group py-0.5"
     >
       {/* 操作手柄 */}
-      <HandleButtons extraClass="pt-0.5" />
+      {handleButtonsJsx('pt-0.5')}
 
       {/* Block 内容区 */}
-      <div className="flex-1 min-w-0 relative">
+      <div className="min-w-0 relative">
         {/* 列表前缀 */}
         {block.type === 'bulleted_list' && (
           <span className="absolute left-0 text-notion-text select-none" style={{ top: '2px' }}>•</span>
@@ -400,7 +509,9 @@ export default function Block({
               onInput={handleInput}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              onFocus={onFocus}
+              onClick={handleClick}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
             />
           </div>
         ) : (
@@ -421,7 +532,9 @@ export default function Block({
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onFocus={onFocus}
+            onClick={handleClick}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
           />
         )}
 

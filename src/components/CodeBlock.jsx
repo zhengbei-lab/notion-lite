@@ -195,13 +195,31 @@ export default function CodeBlock({ block, onUpdate, onEnter, onBackspace, regis
     [block.properties, onUpdate]
   );
 
-  // 复制代码
+  // 复制代码（按钮）
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(block.content || '').then(() => {
+    const content = block.content || '';
+    // 写入自定义格式，粘贴时自动创建 code block
+    const blocksData = [{ type: 'code', content, properties: block.properties }];
+    const item = new ClipboardItem({
+      'text/plain': new Blob([content], { type: 'text/plain' }),
+    });
+    navigator.clipboard.write([item]).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [block.content]);
+    // 同时写入 sessionStorage 作为自定义格式的备份（ClipboardItem 不支持自定义 MIME）
+    sessionStorage.setItem('notion-clipboard', JSON.stringify(blocksData));
+  }, [block.content, block.properties]);
+
+  // 拦截 textarea 的 copy 事件，注入自定义格式
+  const handleTextareaCopy = useCallback((e) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const selected = el.value.substring(el.selectionStart, el.selectionEnd);
+    const content = selected || el.value;
+    const blocksData = [{ type: 'code', content, properties: block.properties }];
+    sessionStorage.setItem('notion-clipboard', JSON.stringify(blocksData));
+  }, [block.content, block.properties]);
 
   const languages = [
     'javascript', 'typescript', 'python', 'java', 'go', 'rust',
@@ -281,6 +299,7 @@ export default function CodeBlock({ block, onUpdate, onEnter, onBackspace, regis
             placeholder="输入代码..."
             onInput={handleInput}
             onKeyDown={handleKeyDown}
+            onCopy={handleTextareaCopy}
             onFocus={onFocus}
             onScroll={(e) => {
               if (highlightRef.current) {

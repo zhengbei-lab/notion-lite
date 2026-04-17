@@ -17,9 +17,13 @@ export default function BlockMenu({ position, blockType, onDelete, onDuplicate, 
     const handleEsc = (e) => {
       if (e.key === 'Escape') onClose();
     };
-    document.addEventListener('mousedown', handleClickOutside);
+    // 延迟注册 mousedown 监听，避免打开菜单的同一次点击触发关闭
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
     document.addEventListener('keydown', handleEsc);
     return () => {
+      clearTimeout(timer);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEsc);
     };

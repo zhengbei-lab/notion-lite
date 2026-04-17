@@ -534,8 +534,9 @@ curl http://localhost:3001/api/documents/doc-001/snapshots  # 页面快照
 | **软删除** | ✅ alive 标记 | ✅ 相同 | 架构一致 |
 | **版本号** | ✅ version 自增 | ✅ + 乐观锁 CAS | 加 CAS 校验 |
 | **操作日志** | ✅ Operation Log | ✅ + Undo/Redo | 加反向操作 |
+| **撤销/重做** | ✅ Block 级快照 | ✅ Operation 级 | 改为 Operation 驱动 |
 | **冲突处理** | Last Write Wins | CRDT（Y.js） | 引入 Y.js |
-| **富文本** | 纯文本 | 加粗/斜体/链接/颜色 | 引入 ProseMirror |
+| **富文本** | Markdown 快捷输入 + 代码高亮 | 加粗/斜体/链接/颜色 | 引入 ProseMirror |
 | **性能** | 全量加载 | 虚拟滚动 + 分页 | 引入虚拟列表 |
 
 **核心结论**：数据模型是灵魂，我们已经对齐了。工程层面的差距——数据库、CRDT、性能优化——那是团队和时间的问题，不是思路的问题。

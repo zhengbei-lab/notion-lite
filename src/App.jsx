@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
 import CollaborationBar from './components/CollaborationBar';
+import TableOfContents from './components/TableOfContents';
 import { useBlocks } from './hooks/useBlocks';
 import { useCollaboration } from './hooks/useCollaboration';
 
@@ -12,6 +13,7 @@ export default function App() {
   const [documents, setDocuments] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
+  const scrollRef = useRef(null);
 
   const { blocks, updateBlock, addBlockAfter, insertBlock, deleteBlock, reorderBlock, replaceBlocks, undo, redo } =
     useBlocks([]);
@@ -195,9 +197,9 @@ export default function App() {
         />
 
         {/* 编辑器 */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="max-w-3xl mx-auto px-24 py-20">
+            <div className="max-w-4xl mx-auto px-24 py-20">
               <div className="space-y-4 animate-pulse">
                 <div className="h-10 bg-gray-100 rounded w-2/3" />
                 <div className="h-4 bg-gray-100 rounded w-full" />
@@ -222,6 +224,11 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* 右侧悬浮目录 */}
+        {!loading && (
+          <TableOfContents blocks={blocks} scrollContainer={scrollRef.current} />
+        )}
       </div>
     </div>
   );
