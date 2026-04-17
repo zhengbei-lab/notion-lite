@@ -15,6 +15,8 @@ export default function Editor({
   onBlockReorder,
   onCursorUpdate,
   onlineUsers,
+  onUndo,
+  onRedo,
 }) {
   const [slashMenu, setSlashMenu] = useState(null); // { blockId, position }
   const [aiPanel, setAIPanel] = useState(null); // { blockId }
@@ -23,6 +25,27 @@ export default function Editor({
   const editorRef = useRef(null);
   const titleRef = useRef(null);
   const blockRefs = useRef({});
+
+  // 拦截 Ctrl+Z / Ctrl+Shift+Z 实现应用级撤销重做
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          onRedo();
+        } else {
+          onUndo();
+        }
+      }
+      // Ctrl+Y 也支持重做
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        onRedo();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onUndo, onRedo]);
 
   // 同步外部标题（仅在未聚焦时更新，避免光标跳转）
   useEffect(() => {
@@ -55,14 +78,27 @@ export default function Editor({
   }, []);
 
   // 处理 Enter 键 — 新增 Block
+  // 列表类型回车延续同类型，空内容则退回 paragraph
+  const continuousTypes = new Set(['bulleted_list', 'numbered_list', 'todo']);
+
   const handleEnter = useCallback(
     (blockId) => {
-      const newBlock = onBlockAdd(blockId, 'paragraph', '');
+      const block = blocks.find((b) => b.id === blockId);
+      let newType = 'paragraph';
+      if (block && continuousTypes.has(block.type)) {
+        // 空内容的列表项回车 → 退出列表，变回段落
+        if (block.content === '') {
+          onBlockUpdate(blockId, { type: 'paragraph' });
+          return;
+        }
+        newType = block.type;
+      }
+      const newBlock = onBlockAdd(blockId, newType, '');
       if (newBlock) {
         focusBlock(newBlock.id);
       }
     },
-    [onBlockAdd, focusBlock]
+    [blocks, onBlockAdd, onBlockUpdate, focusBlock]
   );
 
   // 处理 Backspace — 空 Block 删除
@@ -121,8 +157,11 @@ export default function Editor({
       if (!slashMenu) return;
       const { blockId } = slashMenu;
 
+      // 手动清除 DOM 中残留的 / 字符（因为 / 未同步到 state）
+      const el = blockRefs.current[blockId];
+      if (el) el.textContent = '';
+
       if (type === 'ai') {
-        // 清空当前 block 的 / 字符
         onBlockUpdate(blockId, { content: '', type: 'paragraph' });
         setAIPanel({ blockId });
       } else {

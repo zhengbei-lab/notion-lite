@@ -13,7 +13,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  const { blocks, updateBlock, addBlockAfter, insertBlock, deleteBlock, reorderBlock, replaceBlocks } =
+  const { blocks, updateBlock, addBlockAfter, insertBlock, deleteBlock, reorderBlock, replaceBlocks, undo, redo } =
     useBlocks([]);
 
   const collab = useCollaboration(currentDocId);
@@ -217,6 +217,8 @@ export default function App() {
               onBlockReorder={handleBlockReorder}
               onCursorUpdate={collab.emitCursorUpdate}
               onlineUsers={collab.onlineUsers}
+              onUndo={undo}
+              onRedo={redo}
             />
           )}
         </div>
