@@ -1,4 +1,31 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import java from 'highlight.js/lib/languages/java';
+import go from 'highlight.js/lib/languages/go';
+import rust from 'highlight.js/lib/languages/rust';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import sql from 'highlight.js/lib/languages/sql';
+import json from 'highlight.js/lib/languages/json';
+import bash from 'highlight.js/lib/languages/bash';
+import markdown from 'highlight.js/lib/languages/markdown';
+import 'highlight.js/styles/github.css';
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('markdown', markdown);
 
 /**
  * CodeBlock 组件 — 专业的代码编辑器 Block
@@ -6,9 +33,23 @@ import { useRef, useEffect, useCallback, useState } from 'react';
  */
 export default function CodeBlock({ block, onUpdate, onEnter, onBackspace, registerRef, onFocus }) {
   const textareaRef = useRef(null);
+  const highlightRef = useRef(null);
   const [language, setLanguage] = useState(block.properties?.language || 'javascript');
   const [copied, setCopied] = useState(false);
   const lineCountRef = useRef(null);
+
+  // 获取高亮 HTML
+  const getHighlightedCode = useCallback((code, lang) => {
+    if (!code) return '\n'; // 保证至少一行高度
+    try {
+      if (lang !== 'text' && hljs.getLanguage(lang)) {
+        return hljs.highlight(code, { language: lang }).value + '\n';
+      }
+    } catch (e) {
+      // fallback
+    }
+    return code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '\n';
+  }, []);
 
   // 注册 ref（用 textarea）
   useEffect(() => {
@@ -24,12 +65,19 @@ export default function CodeBlock({ block, onUpdate, onEnter, onBackspace, regis
       el.value = block.content;
       adjustHeight(el);
     }
-  }, [block.content]);
+    // 更新高亮
+    if (highlightRef.current) {
+      highlightRef.current.innerHTML = getHighlightedCode(block.content, language);
+    }
+  }, [block.content, language, getHighlightedCode]);
 
-  // 初始化设置高度
+  // 初始化设置高度 + 高亮
   useEffect(() => {
     if (textareaRef.current) {
       adjustHeight(textareaRef.current);
+    }
+    if (highlightRef.current) {
+      highlightRef.current.innerHTML = getHighlightedCode(block.content, language);
     }
   }, []);
 
@@ -129,8 +177,12 @@ export default function CodeBlock({ block, onUpdate, onEnter, onBackspace, regis
       const content = e.target.value;
       onUpdate({ content });
       adjustHeight(e.target);
+      // 同步高亮
+      if (highlightRef.current) {
+        highlightRef.current.innerHTML = getHighlightedCode(content, language);
+      }
     },
-    [onUpdate]
+    [onUpdate, language, getHighlightedCode]
   );
 
   // 语言切换
@@ -207,18 +259,40 @@ export default function CodeBlock({ block, onUpdate, onEnter, onBackspace, regis
           ))}
         </div>
 
-        {/* 代码输入区 */}
-        <textarea
-          ref={textareaRef}
-          defaultValue={block.content}
-          placeholder="输入代码..."
-          onInput={handleInput}
-          onKeyDown={handleKeyDown}
-          onFocus={onFocus}
-          spellCheck={false}
-          className="flex-1 px-3 py-3 bg-transparent outline-none resize-none font-mono text-[13px] leading-[1.6] text-notion-text overflow-hidden whitespace-pre tab-[2]"
-          style={{ minHeight: '3rem' }}
-        />
+        {/* 代码输入区（叠加层：底层高亮 + 上层透明 textarea） */}
+        <div className="flex-1 relative">
+          {/* 高亮渲染层 */}
+          <pre
+            className="px-3 py-3 font-mono text-[13px] leading-[1.6] m-0 overflow-hidden whitespace-pre-wrap break-words pointer-events-none"
+            aria-hidden="true"
+            style={{ minHeight: '3rem' }}
+          >
+            <code
+              ref={highlightRef}
+              className={`hljs language-${language}`}
+              style={{ background: 'transparent', padding: 0 }}
+              dangerouslySetInnerHTML={{ __html: getHighlightedCode(block.content, language) }}
+            />
+          </pre>
+          {/* 透明 textarea 编辑层 */}
+          <textarea
+            ref={textareaRef}
+            defaultValue={block.content}
+            placeholder="输入代码..."
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onFocus={onFocus}
+            onScroll={(e) => {
+              if (highlightRef.current) {
+                highlightRef.current.parentElement.scrollTop = e.target.scrollTop;
+                highlightRef.current.parentElement.scrollLeft = e.target.scrollLeft;
+              }
+            }}
+            spellCheck={false}
+            className="absolute inset-0 px-3 py-3 bg-transparent outline-none resize-none font-mono text-[13px] leading-[1.6] overflow-hidden whitespace-pre-wrap break-words tab-[2]"
+            style={{ minHeight: '3rem', color: 'transparent', caretColor: '#37352F' }}
+          />
+        </div>
       </div>
     </div>
   );
